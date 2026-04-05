@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #001019;
+  --color-foreground: #ffffff;
+  
+  --color-primary: #72dcff;
+  --color-primary-dim: #3eb4e6;
+  --color-primary-container: #008ebf;
+  --color-on-primary: #001019;
+  
+  --color-secondary: #aa8aff;
+  --color-secondary-container: #4e2b99;
+  --color-on-secondary-container: #e6ddff;
+  
+  --color-surface: #001019;
+  --color-surface-container-lowest: #00080d;
+  --color-surface-container-low: #001622;
+  --color-surface-container: #001d2d;
+  --color-surface-container-high: #002438;
+  --color-surface-container-highest: #002c45;
+  --color-surface-bright: #003653;
+  --color-surface-variant: #002438;
+  --color-on-surface: #a3c9db;
+  --color-on-surface-variant: #78a1b5;
+  
+  --color-outline: #507b94;
+  --color-outline-variant: rgba(80, 123, 148, 0.15);
+  
+  --font-display: var(--font-space-grotesk);
+  --font-body: var(--font-inter);
+
+  --radius-xl: 1.5rem;
+  --radius-md: 0.75rem;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-body);
+}
+
+/* Glassmorphism Utility */
+@utility glass {
+  background-color: rgba(0, 29, 45, 0.4);
+  backdrop-filter: blur(30px);
+}
+
+@utility text-glow-primary {
+  text-shadow: 0 0 10px rgba(114, 220, 255, 0.5);
+}
+
+@utility shadow-ambient {
+  box-shadow: 0 8px 32px 0 rgba(170, 138, 255, 0.08); /* slight bump in opacity for depth */
+}
