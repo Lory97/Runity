@@ -110,6 +110,66 @@ export function useRunTokenBalance() {
   return { balance: balance ? (balance as bigint) : BigInt(0), isLoading, refetch }
 }
 
+export function useApproveRunToken() {
+  const { writeContractAsync, data: hash, error, isPending } = useWriteContract()
+
+  // 1. Get the integrated RunToken address from RunCore
+  const { data: tokenAddress } = useReadContract({
+    address: runCoreContractConfig.address as `0x${string}`,
+    abi: runCoreContractConfig.abi,
+    functionName: 'token',
+  })
+
+  const approve = async (amount: bigint) => {
+    if (!tokenAddress) throw new Error("Token address not found")
+    try {
+      const tx = await writeContractAsync({
+        address: tokenAddress as `0x${string}`,
+        abi: parseAbi([...ERC20_ABI]),
+        functionName: 'approve',
+        args: [runCoreContractConfig.address as `0x${string}`, amount]
+      })
+      return tx
+    } catch (err) {
+      console.error("Approve failed: ", err)
+      throw err
+    }
+  }
+
+  const { isLoading: isWaiting, isSuccess } = useWaitForTransactionReceipt({
+    hash,
+  })
+
+  return { approve, isLoading: isPending || isWaiting, isSuccess, error, hash }
+}
+
+export function useTokenAllowance() {
+  const { address } = useAccount()
+
+  // 1. Get the integrated RunToken address from RunCore
+  const { data: tokenAddress } = useReadContract({
+    address: runCoreContractConfig.address as `0x${string}`,
+    abi: runCoreContractConfig.abi,
+    functionName: 'token',
+  })
+
+  // 2. Read allowance for the connected user on the RunCore contract
+  const { data: allowance, refetch } = useReadContract({
+    address: tokenAddress as `0x${string}`,
+    abi: parseAbi([...ERC20_ABI]),
+    functionName: 'allowance',
+    args: address && runCoreContractConfig.address ?
+      [address as `0x${string}`, runCoreContractConfig.address as `0x${string}`] :
+      undefined,
+    query: {
+      enabled: !!address && !!tokenAddress,
+      refetchInterval: 3000
+    }
+  })
+
+  return { allowance: allowance ? (allowance as bigint) : BigInt(0), refetch }
+}
+
 export function useRunnerProfile() {
   const { address } = useAccount()
 
@@ -325,11 +385,11 @@ export function useStakeMultiplayer() {
   }
 }
 
-export function useClaimMultiplayer() {
+export function useSubmitMultiplayerResult() {
   const { writeContractAsync, data: hash, error, isPending } = useWriteContract()
 
   // The ABI specifies submitting the result to win the multiplayer pool
-  const claimMultiplayer = async (challengeId: bigint, runData: RunData, signature: `0x${string}`) => {
+  const submitMultiplayerResult = async (challengeId: bigint, runData: RunData, signature: `0x${string}`) => {
     try {
       const tx = await writeContractAsync({
         address: runCoreContractConfig.address as `0x${string}`,
@@ -339,7 +399,7 @@ export function useClaimMultiplayer() {
       })
       return tx
     } catch (err) {
-      console.error("Claim failed: ", err)
+      console.error("Submission failed: ", err)
       throw err
     }
   }
@@ -349,12 +409,59 @@ export function useClaimMultiplayer() {
   })
 
   return {
-    claimMultiplayer,
+    submitMultiplayerResult,
     hash,
     error,
     isLoading: isPending || isWaiting,
     isSuccess
   }
+}
+
+export function useResolveMultiChallenge() {
+  const { writeContractAsync, data: hash, error, isPending } = useWriteContract()
+
+  const resolveMultiChallenge = async (challengeId: bigint) => {
+    try {
+      const tx = await writeContractAsync({
+        address: runCoreContractConfig.address as `0x${string}`,
+        abi: runCoreContractConfig.abi,
+        functionName: 'resolveMultiChallenge',
+        args: [challengeId]
+      })
+      return tx
+    } catch (err) {
+      console.error("Resolution failed: ", err)
+      throw err
+    }
+  }
+
+  const { isLoading: isWaiting, isSuccess } = useWaitForTransactionReceipt({
+    hash,
+  })
+
+  return {
+    resolveMultiChallenge,
+    hash,
+    error,
+    isLoading: isPending || isWaiting,
+    isSuccess
+  }
+}
+
+export function useHasSubmitted(challengeId?: bigint) {
+  const { address } = useAccount()
+  const { data, refetch } = useReadContract({
+    address: runCoreContractConfig.address as `0x${string}`,
+    abi: runCoreContractConfig.abi,
+    functionName: 'hasSubmitted',
+    args: challengeId !== undefined && address ? [challengeId, address as `0x${string}`] : undefined,
+    query: {
+      enabled: !!address && challengeId !== undefined,
+      refetchInterval: 3000
+    }
+  })
+
+  return { hasSubmitted: !!data, refetch }
 }
 
 export function useCreateMultiChallenge() {
@@ -483,6 +590,21 @@ export function useFetchPromoCodes() {
 // =======================
 // ADMIN & EVENT LOGIC
 // =======================
+
+export function useHasJoined(challengeId: bigint | undefined) {
+  const { address } = useAccount()
+  const { data: hasJoined, refetch, isLoading } = useReadContract({
+    address: runCoreContractConfig.address as `0x${string}`,
+    abi: runCoreContractConfig.abi,
+    functionName: 'hasJoined',
+    args: challengeId !== undefined && address ? [challengeId, address] : undefined,
+    query: {
+      enabled: !!address && challengeId !== undefined
+    }
+  })
+
+  return { isJoined: !!hasJoined, refetch, isLoading }
+}
 
 export function useIsOwner() {
   const { address } = useAccount()
@@ -618,39 +740,57 @@ export function useFetchMultiPlayerState() {
         toBlock: 'latest'
       })
 
-      const challengesMap: Record<string, any> = {}
+      // Combine logs into a list of challenges
+      const challenges: any[] = []
 
       for (const log of createdLogs) {
         if (log.args.challengeId === undefined) continue;
-        const cid = log.args.challengeId.toString();
-        challengesMap[cid] = {
-          ...log.args,
-          challengers: [log.args.creator],
-          isCompleted: false,
-          winner: null
+        const id = log.args.challengeId;
+
+        try {
+          const data = await publicClient.readContract({
+            address: contractAddr,
+            abi: runCoreContractConfig.abi,
+            functionName: 'multiChallenges',
+            args: [id]
+          }) as any
+
+          // Find challengers for this ID from logs
+          const challengers = joinedLogs
+            .filter(j => j.args.challengeId !== undefined && BigInt(j.args.challengeId) === BigInt(id))
+            .map(j => j.args.challenger)
+
+          // Resilience: handle both array and object returns from viem
+          const isArray = Array.isArray(data);
+
+          challenges.push({
+            challengeId: id,
+            creator: isArray ? data[0] : data.creator,
+            stakeAmount: isArray ? data[1] : data.stakeAmount,
+            distanceTarget: isArray ? data[2] : data.distanceTarget,
+            timeMax: isArray ? data[3] : data.timeMax,
+            deadline: isArray ? data[4] : data.deadline,
+            challengerCount: isArray ? data[5] : data.challengerCount,
+            bestTime: isArray ? data[6] : data.bestTime,
+            isCompleted: isArray ? data[7] : data.isCompleted,
+            winner: isArray ? data[8] : data.winner,
+            challengers
+          })
+        } catch (err) {
+          console.error(`Error fetching challenge ${id}:`, err);
+          continue;
         }
       }
 
-      for (const log of joinedLogs) {
-        if (log.args.challengeId === undefined) continue;
-        const cid = log.args.challengeId.toString();
-        if (challengesMap[cid]) {
-          challengesMap[cid].challengers.push(log.args.challenger)
+      // Sort: Open challenges first, then by ID descending
+      challenges.sort((a, b) => {
+        if (a.isCompleted === b.isCompleted) {
+          return Number(b.challengeId - a.challengeId)
         }
-      }
+        return a.isCompleted ? 1 : -1
+      })
 
-      for (const log of completedLogs) {
-        if (log.args.challengeId === undefined) continue;
-        const cid = log.args.challengeId.toString();
-        if (challengesMap[cid]) {
-          challengesMap[cid].isCompleted = true;
-          challengesMap[cid].winner = log.args.winner;
-        }
-      }
-
-      // Convert Map back to array and reverse (newest first)
-      const result = Object.values(challengesMap).reverse()
-      return result
+      return challenges
     },
     enabled: !!publicClient,
     refetchInterval: 5000

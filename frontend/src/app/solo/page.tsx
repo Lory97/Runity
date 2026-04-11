@@ -4,7 +4,7 @@ import React, { useState } from 'react'
 import { useIsOwner, useAddSoloChallenge, useFetchSoloChallengeEvents, useSubmitSoloRun, generateMockBackendSignature, RunData, useRunnerProfile } from '@/hooks/useRunCore'
 import { useAccount, useChainId } from 'wagmi'
 import { parseEther, formatEther } from 'viem'
-import { PlusCircle, Activity, Timer, Zap, Loader2, RefreshCw, CheckCircle2 } from 'lucide-react'
+import { PlusCircle, Activity, Timer, Zap, Loader2, RefreshCw, CheckCircle2, ChevronDown, ChevronUp, Plus, Lock } from 'lucide-react'
 
 // Sub-component for Admin Form
 function AdminChallengeForm({ refetch }: { refetch: () => void }) {
@@ -15,6 +15,7 @@ function AdminChallengeForm({ refetch }: { refetch: () => void }) {
   const [timeMax, setTimeMax] = useState("3600")   // Default 3600s (1 hour)
   const [reward, setReward] = useState("10")       // Default 10 RUN
   const [showSuccess, setShowSuccess] = useState(false)
+  const [isOpen, setIsOpen] = useState(false)
 
   React.useEffect(() => {
     if (isSuccess) {
@@ -41,79 +42,99 @@ function AdminChallengeForm({ refetch }: { refetch: () => void }) {
   if (!isOwner) return null;
 
   return (
-    <section className="bg-surface-container-high rounded-xl p-6 glass border border-primary/20 hover:border-primary/50 transition-colors shadow-ambient mb-10">
-      <div className="flex items-center gap-3 mb-6">
-        <PlusCircle className="text-primary w-6 h-6" />
-        <h2 className="font-display text-xl font-bold uppercase tracking-widest text-primary text-glow-primary">
-          Admin: Create Solo Challenge
-        </h2>
-      </div>
-
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-        <div>
-          <label className="block text-xs font-bold text-on-surface-variant mb-2 uppercase tracking-wider">
-            Distance (meters)
-          </label>
-          <input
-            type="number"
-            value={distance}
-            onChange={(e) => setDistance(e.target.value)}
-            className="w-full bg-surface-container-lowest border border-outline-variant/50 focus:border-primary focus:shadow-[inset_0_0_10px_var(--color-primary-dim)] rounded-xl px-4 py-3 text-foreground font-display outline-none transition-all"
-            required
-            min="1"
-          />
-        </div>
-        <div>
-           <label className="block text-xs font-bold text-on-surface-variant mb-2 uppercase tracking-wider">
-            Max Time (seconds)
-          </label>
-          <input
-            type="number"
-            value={timeMax}
-            onChange={(e) => setTimeMax(e.target.value)}
-            className="w-full bg-surface-container-lowest border border-outline-variant/50 focus:border-primary focus:shadow-[inset_0_0_10px_var(--color-primary-dim)] rounded-xl px-4 py-3 text-foreground font-display outline-none transition-all"
-            required
-            min="1"
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-bold text-on-surface-variant mb-2 uppercase tracking-wider">
-            Reward (RUN)
-          </label>
-          <input
-            type="number"
-            step="0.1"
-            value={reward}
-            onChange={(e) => setReward(e.target.value)}
-            className="w-full bg-surface-container-lowest border border-outline-variant/50 focus:border-primary focus:shadow-[inset_0_0_10px_var(--color-primary-dim)] rounded-xl px-4 py-3 text-foreground font-display outline-none transition-all"
-            required
-            min="0.1"
-          />
-        </div>
-        <button
-          type="submit"
-          disabled={isAdding}
-          className="w-full bg-gradient-to-r from-primary to-primary-container text-on-primary font-display font-bold text-sm lg:text-base rounded-xl py-3 hover:opacity-90 hover:shadow-[0_0_15px_var(--color-primary-dim)] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wider h-[46px]"
-        >
-          {isAdding ? "Creating..." : "Create"}
-        </button>
-      </form>
-      
-      {showSuccess && (
-        <div className="mt-6 p-4 rounded-xl glass bg-green-950/40 border border-green-500/50 text-green-400 text-sm font-bold flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
-          <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
-            <Zap className="w-4 h-4 text-green-400" />
+    <div className="mb-10">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`group w-full flex items-center justify-between p-6 rounded-xl glass border transition-all duration-500 shadow-ambient ${
+          isOpen 
+          ? 'bg-primary/10 border-primary/40 rounded-b-none' 
+          : 'bg-surface-container-high border-primary/20 hover:border-primary/50'
+        }`}
+      >
+        <div className="flex items-center gap-4">
+          <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-500 ${
+            isOpen ? 'bg-primary text-on-primary rotate-90' : 'bg-primary/20 text-primary'
+          }`}>
+            <Plus className={`w-6 h-6 transition-transform duration-500 ${isOpen ? 'rotate-45' : ''}`} />
           </div>
-          Challenge successfully deployed to the blockchain!
+          <div className="text-left">
+            <h2 className="font-display text-xl font-bold uppercase tracking-widest text-primary text-glow-primary">
+              Admin: Add Solo Challenge
+            </h2>
+            <p className="text-on-surface-variant text-xs font-medium uppercase tracking-wider opacity-70">
+              Create a new rewards baseline for individual runners
+            </p>
+          </div>
         </div>
-      )}
-      
-      {error && (
-        <div className="mt-4 p-3 rounded-lg bg-red-950/40 border border-red-500/50 text-red-400 text-xs font-bold animate-in fade-in duration-300">
-           Error: {error.message}
+        <div className={`transition-transform duration-500 ${isOpen ? 'rotate-180' : ''}`}>
+          <ChevronDown className="w-6 h-6 text-primary/50" />
         </div>
-      )}
-    </section>
+      </button>
+
+      <div 
+        className={`overflow-hidden transition-all duration-500 ease-in-out ${
+          isOpen ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0 pointer-events-none'
+        }`}
+      >
+        <section className="bg-surface-container-high p-8 glass border-x border-b border-primary/40 rounded-b-xl shadow-ambient relative overflow-hidden">
+          {/* Background glow */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-3xl rounded-full translate-x-10 -translate-y-10 pointer-events-none"></div>
+
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end relative z-10">
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-[10px] font-bold text-primary mb-1 uppercase tracking-[0.2em]">
+                <Activity className="w-3 h-3" /> Distance (m)
+              </label>
+              <input
+                type="number" value={distance} onChange={(e) => setDistance(e.target.value)} required min="1"
+                className="w-full bg-surface-container-lowest border border-outline-variant/30 focus:border-primary/60 rounded-xl px-4 py-3 text-foreground font-display outline-none transition-all shadow-inner-glow"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-[10px] font-bold text-primary mb-1 uppercase tracking-[0.2em]">
+                <Timer className="w-3 h-3" /> Max Time (s)
+              </label>
+              <input
+                type="number" value={timeMax} onChange={(e) => setTimeMax(e.target.value)} required min="1"
+                className="w-full bg-surface-container-lowest border border-outline-variant/30 focus:border-primary/60 rounded-xl px-4 py-3 text-foreground font-display outline-none transition-all shadow-inner-glow"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-[10px] font-bold text-primary mb-1 uppercase tracking-[0.2em]">
+                <Zap className="w-3 h-3" /> Reward (RUN)
+              </label>
+              <input
+                type="number" step="0.1" value={reward} onChange={(e) => setReward(e.target.value)} required min="0.1"
+                className="w-full bg-surface-container-lowest border border-outline-variant/30 focus:border-primary/60 rounded-xl px-4 py-3 text-foreground font-display outline-none transition-all shadow-inner-glow"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isAdding}
+              className={`w-full font-display font-bold text-sm lg:text-base rounded-xl py-3 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-widest h-[48px] flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-primary-container text-on-primary shadow-glow hover:scale-[1.02] active:scale-95`}
+            >
+              {isAdding ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlusCircle className="w-4 h-4" />}
+              {isAdding ? "Creating..." : "Create Challenge"}
+            </button>
+          </form>
+
+          {showSuccess && (
+            <div className="mt-8 p-4 rounded-xl glass bg-green-950/40 border border-green-500/50 text-green-400 text-sm font-bold flex items-center gap-3 animate-in slide-in-from-top-4 duration-500">
+              <CheckCircle2 className="w-5 h-5" /> Solo challenge successfully deployed to the blockchain!
+            </div>
+          )}
+
+          {error && (
+            <div className="mt-6 p-4 rounded-xl bg-red-950/40 border border-red-500/50 text-red-400 text-xs font-bold animate-in shake duration-500">
+              Error: {error.message}
+            </div>
+          )}
+        </section>
+      </div>
+    </div>
   )
 }
 

@@ -1,5 +1,5 @@
 export const runCoreContractConfig = {
-    address: "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+    address: "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318",
     abi: [
         {
             "inputs": [
@@ -192,6 +192,31 @@ export const runCoreContractConfig = {
                 }
             ],
             "name": "MultiChallengeRefunded",
+            "type": "event"
+        },
+        {
+            "anonymous": false,
+            "inputs": [
+                {
+                    "indexed": true,
+                    "internalType": "uint256",
+                    "name": "challengeId",
+                    "type": "uint256"
+                },
+                {
+                    "indexed": true,
+                    "internalType": "address",
+                    "name": "participant",
+                    "type": "address"
+                },
+                {
+                    "indexed": false,
+                    "internalType": "uint256",
+                    "name": "time",
+                    "type": "uint256"
+                }
+            ],
+            "name": "MultiChallengeResultSubmitted",
             "type": "event"
         },
         {
@@ -573,6 +598,30 @@ export const runCoreContractConfig = {
             "inputs": [
                 {
                     "internalType": "uint256",
+                    "name": "",
+                    "type": "uint256"
+                },
+                {
+                    "internalType": "address",
+                    "name": "",
+                    "type": "address"
+                }
+            ],
+            "name": "hasSubmitted",
+            "outputs": [
+                {
+                    "internalType": "bool",
+                    "name": "",
+                    "type": "bool"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "uint256",
                     "name": "challengeId",
                     "type": "uint256"
                 }
@@ -620,6 +669,11 @@ export const runCoreContractConfig = {
                 {
                     "internalType": "uint256",
                     "name": "challengerCount",
+                    "type": "uint256"
+                },
+                {
+                    "internalType": "uint256",
+                    "name": "bestTime",
                     "type": "uint256"
                 },
                 {
@@ -704,6 +758,19 @@ export const runCoreContractConfig = {
         {
             "inputs": [],
             "name": "renounceOwnership",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "challengeId",
+                    "type": "uint256"
+                }
+            ],
+            "name": "resolveMultiChallenge",
             "outputs": [],
             "stateMutability": "nonpayable",
             "type": "function"
@@ -899,5 +966,7 @@ export const runCoreContractConfig = {
 export const ERC20_ABI = [
     "function balanceOf(address owner) view returns (uint256)",
     "function symbol() view returns (string)",
-    "function decimals() view returns (uint8)"
+    "function decimals() view returns (uint8)",
+    "function allowance(address owner, address spender) view returns (uint256)",
+    "function approve(address spender, uint256 amount) returns (bool)"
 ];

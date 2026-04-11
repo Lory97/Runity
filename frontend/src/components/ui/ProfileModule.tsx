@@ -39,7 +39,7 @@ export function ProfileModule() {
     return (
       <div className="bg-surface-container-high rounded-xl p-6 glass border border-secondary/30 relative overflow-hidden shadow-ambient h-full flex flex-col justify-center">
         <div className="absolute top-0 right-0 w-64 h-64 bg-secondary/10 blur-3xl rounded-full translate-x-12 -translate-y-12 pointer-events-none"></div>
-        
+
         <div className="relative z-10 text-center">
           <div className="w-16 h-16 rounded-full bg-secondary/10 flex items-center justify-center mx-auto mb-4 border border-secondary/20 shadow-glow-secondary">
             <Plus className="w-8 h-8 text-secondary" />
@@ -49,7 +49,7 @@ export function ProfileModule() {
             Initialize your soulbound Runner profile on the blockchain to track distance and compete.
           </p>
 
-          <button 
+          <button
             disabled={isRegistering}
             onClick={() => registerRunner()}
             className="w-full bg-gradient-to-r from-secondary to-secondary-container text-on-secondary font-display font-bold text-lg rounded-full py-3 hover:opacity-90 hover:shadow-glow-secondary transition-all duration-300 disabled:opacity-50 uppercase tracking-widest flex items-center justify-center gap-2"
@@ -75,7 +75,7 @@ export function ProfileModule() {
       </div>
 
       <div className="space-y-6 relative z-10">
-        
+
         {/* Total Distance */}
         <div className="flex items-center justify-between group">
           <div className="flex items-center gap-3">
@@ -85,7 +85,7 @@ export function ProfileModule() {
             <span className="font-sans font-bold text-on-surface-variant uppercase text-xs tracking-wider">Total Distance</span>
           </div>
           <span className="font-display font-black text-xl text-foreground">
-            {profile.totalDistance.toString()} <span className="text-xs text-outline-variant tracking-widest">KM</span>
+            {(Number(profile.totalDistance) / 1000).toFixed(2)} <span className="text-xs tracking-widest">KM</span>
           </span>
         </div>
 
