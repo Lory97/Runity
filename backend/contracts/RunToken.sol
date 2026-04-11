@@ -49,13 +49,6 @@ contract RunToken is ERC20, Ownable {
     }
 
     /**
-     * @dev Allows the Core contract to escrow tokens without requiring user approval.
-     */
-    function escrowTransfer(address from, address to, uint256 amount) external onlyCoreOrOwner {
-        _transfer(from, to, amount);
-    }
-
-    /**
      * @dev Soulbound implementation for OpenZeppelin v5.
      * Reverts if neither the sender nor the recipient is the core contract or zero address.
      */

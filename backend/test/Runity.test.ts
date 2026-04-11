@@ -107,9 +107,11 @@ describe("Runity Security Architecture & Logic", function () {
     await core.connect(user).claimSoloChallenge(0, uData, uSig);
 
     // Create Multiplayer Challenge
+    await token.connect(user).approve(core.target, ethers.parseEther("20"));
     await core.connect(user).createMultiChallenge(5000, 3600, ethers.parseEther("20"), 86400);
     
     // Challenger joins
+    await token.connect(challenger).approve(core.target, ethers.parseEther("20"));
     await core.connect(challenger).joinMultiChallenge(0);
 
     // Challenger tries to double join

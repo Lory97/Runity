@@ -16,10 +16,13 @@ contract RunCore is Ownable, EIP712 {
     using ECDSA for bytes32;
 
     /**
-     * @dev EIP-712 TypeHash for RunData structure. 
+     * @dev EIP-712 TypeHash for RunData structure.
      * Includes the user address to prevent mempool frontrunning.
      */
-    bytes32 private constant RUNDATA_TYPEHASH = keccak256("RunData(address user,uint256 distance,uint256 time,uint256 date,uint256 steps,uint256 avgSpeed,uint256 maxSpeed)");
+    bytes32 private constant RUNDATA_TYPEHASH =
+        keccak256(
+            "RunData(address user,uint256 distance,uint256 time,uint256 date,uint256 steps,uint256 avgSpeed,uint256 maxSpeed)"
+        );
 
     /**
      * @dev Structure representing a runner profile.
@@ -51,6 +54,7 @@ contract RunCore is Ownable, EIP712 {
         uint256 timeMax;
         uint256 deadline;
         uint256 challengerCount;
+        uint256 bestTime; // Shortest time recorded
         bool isCompleted;
         address winner;
     }
@@ -79,6 +83,7 @@ contract RunCore is Ownable, EIP712 {
 
     /// @notice Maps a challenge ID to a mapping of participants (O(1) lookup & anti double-join).
     mapping(uint256 => mapping(address => bool)) public hasJoined;
+    mapping(uint256 => mapping(address => bool)) public hasSubmitted;
 
     /// @notice Maps a hash of run data to a boolean to prevent replay attacks.
     mapping(bytes32 => bool) public executedRuns;
@@ -105,23 +110,52 @@ contract RunCore is Ownable, EIP712 {
     event RunnerRegistered(address indexed runner);
 
     /// @notice Emitted when the admin creates a new Solo Challenge.
-    event SoloChallengeAdded(uint256 indexed challengeId, uint256 distance, uint256 timeMax, uint256 reward);
+    event SoloChallengeAdded(
+        uint256 indexed challengeId,
+        uint256 distance,
+        uint256 timeMax,
+        uint256 reward
+    );
 
     /// @notice Emitted when a user successfully completes a Solo Challenge.
     event SoloChallengeWon(address indexed runner, uint256 indexed challengeId);
-    
+
     /// @notice Emitted when a user creates a Multiplayer challenge and stakes their tokens.
-    event MultiChallengeCreated(uint256 indexed challengeId, address indexed creator, uint256 stakeAmount, uint256 distanceTarget, uint256 timeMax, uint256 deadline);
-    
+    event MultiChallengeCreated(
+        uint256 indexed challengeId,
+        address indexed creator,
+        uint256 stakeAmount,
+        uint256 distanceTarget,
+        uint256 timeMax,
+        uint256 deadline
+    );
+
     /// @notice Emitted when a user joins an existing Multiplayer challenge and stakes tokens.
-    event MultiChallengeJoined(uint256 indexed challengeId, address indexed challenger);
-    
+    event MultiChallengeJoined(
+        uint256 indexed challengeId,
+        address indexed challenger
+    );
+
     /// @notice Emitted when a user claims victory in a multiplayer challenge.
-    event MultiChallengeCompleted(uint256 indexed challengeId, address indexed winner, uint256 totalReward);
-    
+    event MultiChallengeCompleted(
+        uint256 indexed challengeId,
+        address indexed winner,
+        uint256 totalReward
+    );
+
     /// @notice Emitted when a participant is refunded due to challenge expiry without any winners.
-    event MultiChallengeRefunded(uint256 indexed challengeId, address indexed participant);
-    
+    event MultiChallengeRefunded(
+        uint256 indexed challengeId,
+        address indexed participant
+    );
+
+    /// @notice Emitted when a user submits a result for a multiplayer challenge.
+    event MultiChallengeResultSubmitted(
+        uint256 indexed challengeId,
+        address indexed participant,
+        uint256 time
+    );
+
     /// @notice Emitted when a new promo item is listed by the admin.
     event PromoAdded(uint256 indexed promoId, uint256 cost);
 
@@ -131,7 +165,10 @@ contract RunCore is Ownable, EIP712 {
     /**
      * @dev Initializes the contract by linking the token and setting the backend signer.
      */
-    constructor(address _tokenAddress, address _signer) Ownable(msg.sender) EIP712("RunCore", "1") {
+    constructor(
+        address _tokenAddress,
+        address _signer
+    ) Ownable(msg.sender) EIP712("RunCore", "1") {
         token = RunToken(_tokenAddress);
         backendSigner = _signer;
     }
@@ -162,7 +199,7 @@ contract RunCore is Ownable, EIP712 {
         if (currentBalance + amount > maxBalance) {
             amountToGive = maxBalance - currentBalance;
         }
-        
+
         if (amountToGive > 0) {
             token.mint(to, amountToGive);
         }
@@ -193,23 +230,28 @@ contract RunCore is Ownable, EIP712 {
     /**
      * @dev Verifies that the run data matches the backend's EIP-712 signature.
      */
-    function _verifyRunSignature(RunData calldata data, bytes calldata signature) internal returns (bytes32) {
+    function _verifyRunSignature(
+        RunData calldata data,
+        bytes calldata signature
+    ) internal returns (bytes32) {
         // Enforce the data user is the tx sender to prevent frontrunning
         require(data.user == msg.sender, "RunData user mismatch");
 
-        bytes32 structHash = keccak256(abi.encode(
-            RUNDATA_TYPEHASH,
-            data.user,
-            data.distance,
-            data.time,
-            data.date,
-            data.steps,
-            data.avgSpeed,
-            data.maxSpeed
-        ));
+        bytes32 structHash = keccak256(
+            abi.encode(
+                RUNDATA_TYPEHASH,
+                data.user,
+                data.distance,
+                data.time,
+                data.date,
+                data.steps,
+                data.avgSpeed,
+                data.maxSpeed
+            )
+        );
 
         bytes32 runHash = _hashTypedDataV4(structHash);
-        
+
         require(!executedRuns[runHash], "Run already submitted");
         executedRuns[runHash] = true;
 
@@ -221,28 +263,44 @@ contract RunCore is Ownable, EIP712 {
 
     // --- Solo Mode ---
 
-    function addSoloChallenge(uint256 _distanceTarget, uint256 _timeMax, uint256 _reward) external onlyOwner {
+    function addSoloChallenge(
+        uint256 _distanceTarget,
+        uint256 _timeMax,
+        uint256 _reward
+    ) external onlyOwner {
         soloChallenges[nextSoloChallengeId] = SoloChallenge({
             distanceTarget: _distanceTarget,
             timeMax: _timeMax,
             reward: _reward,
             isActive: true
         });
-        emit SoloChallengeAdded(nextSoloChallengeId, _distanceTarget, _timeMax, _reward);
+        emit SoloChallengeAdded(
+            nextSoloChallengeId,
+            _distanceTarget,
+            _timeMax,
+            _reward
+        );
         nextSoloChallengeId++;
     }
 
-    function claimSoloChallenge(uint256 challengeId, RunData calldata data, bytes calldata signature) external {
+    function claimSoloChallenge(
+        uint256 challengeId,
+        RunData calldata data,
+        bytes calldata signature
+    ) external {
         require(runners[msg.sender].isRegistered, "Not registered");
         SoloChallenge memory challenge = soloChallenges[challengeId];
         require(challenge.isActive, "Challenge not active");
-        require(data.distance >= challenge.distanceTarget, "Distance target not met");
+        require(
+            data.distance >= challenge.distanceTarget,
+            "Distance target not met"
+        );
         require(data.time <= challenge.timeMax, "Time limit exceeded");
 
         _verifyRunSignature(data, signature);
 
         runners[msg.sender].totalDistance += data.distance;
-        
+
         _payoutMint(msg.sender, challenge.reward);
 
         emit SoloChallengeWon(msg.sender, challengeId);
@@ -250,12 +308,17 @@ contract RunCore is Ownable, EIP712 {
 
     // --- Multiplayer Mode ---
 
-    function createMultiChallenge(uint256 _distanceTarget, uint256 _timeMax, uint256 _stakeAmount, uint256 _duration) external {
+    function createMultiChallenge(
+        uint256 _distanceTarget,
+        uint256 _timeMax,
+        uint256 _stakeAmount,
+        uint256 _duration
+    ) external {
         require(runners[msg.sender].isRegistered, "Not registered");
         require(_stakeAmount > 0, "Stake must be > 0");
 
         // Escrow the stake
-        token.escrowTransfer(msg.sender, address(this), _stakeAmount);
+        token.transferFrom(msg.sender, address(this), _stakeAmount);
 
         uint256 challengeId = nextMultiChallengeId++;
         MultiChallenge storage newChallenge = multiChallenges[challengeId];
@@ -265,19 +328,34 @@ contract RunCore is Ownable, EIP712 {
         newChallenge.stakeAmount = _stakeAmount;
         newChallenge.deadline = block.timestamp + _duration;
         newChallenge.challengerCount = 1;
-        
+        newChallenge.bestTime = type(uint256).max;
+        newChallenge.isCompleted = false;
+
         hasJoined[challengeId][msg.sender] = true;
         runners[msg.sender].challengesPlayed++;
 
-        emit MultiChallengeCreated(challengeId, msg.sender, _stakeAmount, _distanceTarget, _timeMax, newChallenge.deadline);
+        emit MultiChallengeCreated(
+            challengeId,
+            msg.sender,
+            _stakeAmount,
+            _distanceTarget,
+            _timeMax,
+            newChallenge.deadline
+        );
     }
 
     function joinMultiChallenge(uint256 challengeId) external {
         require(runners[msg.sender].isRegistered, "Not registered");
         MultiChallenge storage challenge = multiChallenges[challengeId];
         require(!challenge.isCompleted, "Challenge already completed");
-        require(block.timestamp < challenge.deadline, "Challenge deadline passed");
-        require(challenge.challengerCount < MAX_CHALLENGERS, "Challenge is full");
+        require(
+            block.timestamp < challenge.deadline,
+            "Challenge deadline passed"
+        );
+        require(
+            challenge.challengerCount < MAX_CHALLENGERS,
+            "Challenge is full"
+        );
         require(!hasJoined[challengeId][msg.sender], "Already joined");
 
         hasJoined[challengeId][msg.sender] = true;
@@ -285,46 +363,96 @@ contract RunCore is Ownable, EIP712 {
         runners[msg.sender].challengesPlayed++;
 
         // Escrow the stake
-        token.escrowTransfer(msg.sender, address(this), challenge.stakeAmount);
+        token.transferFrom(msg.sender, address(this), challenge.stakeAmount);
 
         emit MultiChallengeJoined(challengeId, msg.sender);
     }
 
-    function submitMultiplayerResult(uint256 challengeId, RunData calldata data, bytes calldata signature) external {
+    function submitMultiplayerResult(
+        uint256 challengeId,
+        RunData calldata data,
+        bytes calldata signature
+    ) external {
         MultiChallenge storage challenge = multiChallenges[challengeId];
-        require(!challenge.isCompleted, "Challenge already completed");
-        require(block.timestamp <= challenge.deadline, "Challenge deadline passed");
-        require(hasJoined[challengeId][msg.sender], "Not a participant in this challenge");
-        require(data.distance >= challenge.distanceTarget, "Distance target not met");
+        require(!challenge.isCompleted, "Challenge already resolved");
+        require(
+            block.timestamp <= challenge.deadline,
+            "Challenge deadline passed"
+        );
+        require(hasJoined[challengeId][msg.sender], "Not a participant");
+        require(
+            !hasSubmitted[challengeId][msg.sender],
+            "Already submitted your result"
+        );
+        require(
+            data.distance >= challenge.distanceTarget,
+            "Distance target not met"
+        );
         require(data.time <= challenge.timeMax, "Time limit exceeded");
 
         _verifyRunSignature(data, signature);
 
-        challenge.isCompleted = true;
-        challenge.winner = msg.sender;
-        
+        hasSubmitted[challengeId][msg.sender] = true;
+
+        // Update best performance
+        if (data.time < challenge.bestTime) {
+            challenge.bestTime = data.time;
+            challenge.winner = msg.sender;
+        }
+
         runners[msg.sender].totalDistance += data.distance;
-        runners[msg.sender].challengesWon++;
 
-        // Escrow Payout Pool
-        uint256 totalPool = challenge.stakeAmount * challenge.challengerCount;
-        _payoutEscrow(msg.sender, totalPool);
+        emit MultiChallengeResultSubmitted(challengeId, msg.sender, data.time);
+    }
 
-        emit MultiChallengeCompleted(challengeId, msg.sender, totalPool);
+    /**
+     * @dev Resolves a multiplayer challenge and distributes the pool to the winner.
+     */
+    function resolveMultiChallenge(uint256 challengeId) external {
+        MultiChallenge storage challenge = multiChallenges[challengeId];
+        require(!challenge.isCompleted, "Challenge already resolved");
+        require(
+            block.timestamp > challenge.deadline,
+            "Challenge deadline not yet passed"
+        );
+        require(
+            msg.sender == owner() || hasJoined[challengeId][msg.sender],
+            "Only admin or participant can resolve"
+        );
+
+        challenge.isCompleted = true;
+
+        if (challenge.winner != address(0)) {
+            runners[challenge.winner].challengesWon++;
+            uint256 totalPool = challenge.stakeAmount *
+                challenge.challengerCount;
+            _payoutEscrow(challenge.winner, totalPool);
+            emit MultiChallengeCompleted(
+                challengeId,
+                challenge.winner,
+                totalPool
+            );
+        }
     }
 
     function claimRefund(uint256 challengeId) external {
         MultiChallenge storage challenge = multiChallenges[challengeId];
         require(!challenge.isCompleted, "Challenge completed, no refund");
-        require(block.timestamp > challenge.deadline, "Deadline not passed yet");
-        require(hasJoined[challengeId][msg.sender], "Not a participant or already refunded");
+        require(
+            block.timestamp > challenge.deadline,
+            "Deadline not passed yet"
+        );
+        require(
+            hasJoined[challengeId][msg.sender],
+            "Not a participant or already refunded"
+        );
 
         // Release user from mapping to prevent double pull refund
         hasJoined[challengeId][msg.sender] = false;
 
         // Refund the stake using Escrow payout logic
         _payoutEscrow(msg.sender, challenge.stakeAmount);
-        
+
         emit MultiChallengeRefunded(challengeId, msg.sender);
     }
 
