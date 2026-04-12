@@ -118,7 +118,11 @@ contract RunCore is Ownable, EIP712 {
     );
 
     /// @notice Emitted when a user successfully completes a Solo Challenge.
-    event SoloChallengeWon(address indexed runner, uint256 indexed challengeId);
+    event SoloChallengeWon(
+        address indexed runner,
+        uint256 indexed challengeId,
+        uint256 reward
+    );
 
     /// @notice Emitted when a user creates a Multiplayer challenge and stakes their tokens.
     event MultiChallengeCreated(
@@ -133,7 +137,8 @@ contract RunCore is Ownable, EIP712 {
     /// @notice Emitted when a user joins an existing Multiplayer challenge and stakes tokens.
     event MultiChallengeJoined(
         uint256 indexed challengeId,
-        address indexed challenger
+        address indexed challenger,
+        uint256 stakeAmount
     );
 
     /// @notice Emitted when a user claims victory in a multiplayer challenge.
@@ -303,7 +308,7 @@ contract RunCore is Ownable, EIP712 {
 
         _payoutMint(msg.sender, challenge.reward);
 
-        emit SoloChallengeWon(msg.sender, challengeId);
+        emit SoloChallengeWon(msg.sender, challengeId, challenge.reward);
     }
 
     // --- Multiplayer Mode ---
@@ -365,7 +370,11 @@ contract RunCore is Ownable, EIP712 {
         // Escrow the stake
         token.transferFrom(msg.sender, address(this), challenge.stakeAmount);
 
-        emit MultiChallengeJoined(challengeId, msg.sender);
+        emit MultiChallengeJoined(
+            challengeId,
+            msg.sender,
+            challenge.stakeAmount
+        );
     }
 
     function submitMultiplayerResult(

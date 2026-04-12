@@ -209,7 +209,7 @@ export function useFetchUserActivity() {
       // 1. Solo Won
       const soloLogs = await publicClient.getLogs({
         address: runCoreContractConfig.address as `0x${string}`,
-        event: parseAbiItem('event SoloChallengeWon(address indexed runner, uint256 indexed challengeId)'),
+        event: parseAbiItem('event SoloChallengeWon(address indexed runner, uint256 indexed challengeId, uint256 reward)'),
         args: { runner: addressArg },
         fromBlock: BigInt(0),
         toBlock: 'latest'
@@ -218,7 +218,7 @@ export function useFetchUserActivity() {
       // 2. Multi Joined
       const multiJoinedLogs = await publicClient.getLogs({
         address: runCoreContractConfig.address as `0x${string}`,
-        event: parseAbiItem('event MultiChallengeJoined(uint256 indexed challengeId, address indexed challenger)'),
+        event: parseAbiItem('event MultiChallengeJoined(uint256 indexed challengeId, address indexed challenger, uint256 stakeAmount)'),
         args: { challenger: addressArg },
         fromBlock: BigInt(0),
         toBlock: 'latest'
@@ -242,9 +242,19 @@ export function useFetchUserActivity() {
         toBlock: 'latest'
       })
 
+      // 5. Multi Created (also counts as activity for creator)
+      const multiCreatedLogs = await publicClient.getLogs({
+        address: runCoreContractConfig.address as `0x${string}`,
+        event: parseAbiItem('event MultiChallengeCreated(uint256 indexed challengeId, address indexed creator, uint256 stakeAmount, uint256 distanceTarget, uint256 timeMax, uint256 deadline)'),
+        args: { creator: addressArg },
+        fromBlock: BigInt(0),
+        toBlock: 'latest'
+      })
+
       const combined = [
         ...soloLogs.map(l => ({ type: 'Solo Won' as const, log: l })),
         ...multiJoinedLogs.map(l => ({ type: 'Multiplayer Joined' as const, log: l })),
+        ...multiCreatedLogs.map(l => ({ type: 'Multiplayer Created' as const, log: l })),
         ...multiWonLogs.map(l => ({ type: 'Multiplayer Won' as const, log: l })),
         ...promoLogs.map(l => ({ type: 'Promo Code' as const, log: l })),
       ];
@@ -264,12 +274,18 @@ export function useFetchUserActivity() {
           case 'Solo Won':
             title = 'Solo Run Completed';
             hint = `Challenge #${item.log.args.challengeId}`;
-            amount = '+ Reward';
+            amount = `+${formatEther(item.log.args.reward || BigInt(0))} RUN`;
+            break;
+          case 'Multiplayer Created':
+            title = 'Initiated Multi';
+            hint = `Challenge #${item.log.args.challengeId}`;
+            amount = `-${formatEther(item.log.args.stakeAmount || BigInt(0))} RUN`;
+            isPositive = false;
             break;
           case 'Multiplayer Joined':
             title = 'Joined Multiplayer';
             hint = `Challenge #${item.log.args.challengeId}`;
-            amount = '- Stake';
+            amount = `-${formatEther(item.log.args.stakeAmount || BigInt(0))} RUN`;
             isPositive = false;
             break;
           case 'Multiplayer Won':

@@ -1,5 +1,5 @@
 export const runCoreContractConfig = {
-    address: "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318",
+    address: "0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82",
     abi: [
         {
             "inputs": [
