@@ -36,7 +36,7 @@ export default async function RootLayout({
       <body className="min-h-full flex flex-col font-body bg-background text-foreground">
         <ContextProvider cookies={cookies}>
           <Navbar />
-          <main className="flex-1 mt-20 px-6 py-8 pb-32 md:pb-8">
+          <main className="flex-1 mt-20 px-6 py-8 pb-80 md:pb-8">
             <div className="max-w-7xl mx-auto space-y-10">
               {children}
             </div>

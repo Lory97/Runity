@@ -170,10 +170,7 @@ function SoloChallengeCard({ ev }: { ev: any }) {
         user: address,
         distance: ev.distance + BigInt(500), // Slightly more than required
         time: ev.timeMax - BigInt(60),       // 1 minute faster than max time
-        date: BigInt(Math.floor(Date.now() / 1000)),
-        steps: BigInt(6000),
-        avgSpeed: BigInt(12),
-        maxSpeed: BigInt(15)
+        date: BigInt(Math.floor(Date.now() / 1000))
       }
 
       // 3. Generate the magic backend signature directly in frontend (Demo purposes)

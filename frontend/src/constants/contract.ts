@@ -1,5 +1,5 @@
 export const runCoreContractConfig = {
-    address: "0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82",
+    address: "0xd65b0784E4c10b65F9a8Ee9b10565dD518aD2698",
     abi: [
         {
             "inputs": [
@@ -170,6 +170,12 @@ export const runCoreContractConfig = {
                     "internalType": "address",
                     "name": "challenger",
                     "type": "address"
+                },
+                {
+                    "indexed": false,
+                    "internalType": "uint256",
+                    "name": "stakeAmount",
+                    "type": "uint256"
                 }
             ],
             "name": "MultiChallengeJoined",
@@ -340,6 +346,12 @@ export const runCoreContractConfig = {
                     "internalType": "uint256",
                     "name": "challengeId",
                     "type": "uint256"
+                },
+                {
+                    "indexed": false,
+                    "internalType": "uint256",
+                    "name": "reward",
+                    "type": "uint256"
                 }
             ],
             "name": "SoloChallengeWon",
@@ -398,7 +410,7 @@ export const runCoreContractConfig = {
             "inputs": [
                 {
                     "internalType": "uint256",
-                    "name": "promoId",
+                    "name": "_promoId",
                     "type": "uint256"
                 }
             ],
@@ -411,7 +423,7 @@ export const runCoreContractConfig = {
             "inputs": [
                 {
                     "internalType": "uint256",
-                    "name": "challengeId",
+                    "name": "_challengeId",
                     "type": "uint256"
                 }
             ],
@@ -424,7 +436,7 @@ export const runCoreContractConfig = {
             "inputs": [
                 {
                     "internalType": "uint256",
-                    "name": "challengeId",
+                    "name": "_challengeId",
                     "type": "uint256"
                 },
                 {
@@ -448,30 +460,15 @@ export const runCoreContractConfig = {
                             "internalType": "uint256",
                             "name": "date",
                             "type": "uint256"
-                        },
-                        {
-                            "internalType": "uint256",
-                            "name": "steps",
-                            "type": "uint256"
-                        },
-                        {
-                            "internalType": "uint256",
-                            "name": "avgSpeed",
-                            "type": "uint256"
-                        },
-                        {
-                            "internalType": "uint256",
-                            "name": "maxSpeed",
-                            "type": "uint256"
                         }
                     ],
                     "internalType": "struct RunCore.RunData",
-                    "name": "data",
+                    "name": "_data",
                     "type": "tuple"
                 },
                 {
                     "internalType": "bytes",
-                    "name": "signature",
+                    "name": "_signature",
                     "type": "bytes"
                 }
             ],
@@ -622,7 +619,7 @@ export const runCoreContractConfig = {
             "inputs": [
                 {
                     "internalType": "uint256",
-                    "name": "challengeId",
+                    "name": "_challengeId",
                     "type": "uint256"
                 }
             ],
@@ -766,7 +763,7 @@ export const runCoreContractConfig = {
             "inputs": [
                 {
                     "internalType": "uint256",
-                    "name": "challengeId",
+                    "name": "_challengeId",
                     "type": "uint256"
                 }
             ],
@@ -826,16 +823,34 @@ export const runCoreContractConfig = {
             "inputs": [
                 {
                     "internalType": "uint256",
-                    "name": "promoId",
+                    "name": "_promoId",
                     "type": "uint256"
                 },
                 {
                     "internalType": "uint256",
-                    "name": "cost",
+                    "name": "_cost",
                     "type": "uint256"
                 }
             ],
             "name": "setPromoCost",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "_challengeId",
+                    "type": "uint256"
+                },
+                {
+                    "internalType": "bool",
+                    "name": "_isActive",
+                    "type": "bool"
+                }
+            ],
+            "name": "setSoloChallengeActive",
             "outputs": [],
             "stateMutability": "nonpayable",
             "type": "function"
@@ -878,7 +893,7 @@ export const runCoreContractConfig = {
             "inputs": [
                 {
                     "internalType": "uint256",
-                    "name": "challengeId",
+                    "name": "_challengeId",
                     "type": "uint256"
                 },
                 {
@@ -902,30 +917,15 @@ export const runCoreContractConfig = {
                             "internalType": "uint256",
                             "name": "date",
                             "type": "uint256"
-                        },
-                        {
-                            "internalType": "uint256",
-                            "name": "steps",
-                            "type": "uint256"
-                        },
-                        {
-                            "internalType": "uint256",
-                            "name": "avgSpeed",
-                            "type": "uint256"
-                        },
-                        {
-                            "internalType": "uint256",
-                            "name": "maxSpeed",
-                            "type": "uint256"
                         }
                     ],
                     "internalType": "struct RunCore.RunData",
-                    "name": "data",
+                    "name": "_data",
                     "type": "tuple"
                 },
                 {
                     "internalType": "bytes",
-                    "name": "signature",
+                    "name": "_signature",
                     "type": "bytes"
                 }
             ],
@@ -970,3 +970,9 @@ export const ERC20_ABI = [
     "function allowance(address owner, address spender) view returns (uint256)",
     "function approve(address spender, uint256 amount) returns (bool)"
 ];
+
+/**
+ * Block number at which RunCore was deployed on Sepolia.
+ * Used as `fromBlock` in getLogs to avoid scanning from genesis.
+ */
+export const DEPLOY_BLOCK = BigInt(10661368);

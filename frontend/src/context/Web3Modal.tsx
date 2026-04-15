@@ -6,6 +6,7 @@ import { createAppKit } from '@reown/appkit/react'
 import { sepolia, hardhat } from '@reown/appkit/networks'
 import { WagmiProvider, cookieToInitialState } from 'wagmi'
 import React, { type ReactNode } from 'react'
+import { ToastProvider } from '@/components/ui/Toast'
 
 const queryClient = new QueryClient()
 
@@ -38,7 +39,9 @@ export function ContextProvider({ children, cookies }: { children: ReactNode; co
 
   return (
     <WagmiProvider config={wagmiAdapter.wagmiConfig} initialState={initialState}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <ToastProvider>{children}</ToastProvider>
+      </QueryClientProvider>
     </WagmiProvider>
   )
 }

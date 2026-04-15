@@ -3,7 +3,7 @@ import { privateKeyToAccount } from 'viem/accounts'
 import { signTypedData } from 'viem/accounts'
 import { useQuery } from '@tanstack/react-query'
 import { parseAbiItem, parseAbi, formatEther } from 'viem'
-import { runCoreContractConfig, ERC20_ABI } from '@/constants/contract'
+import { runCoreContractConfig, ERC20_ABI, DEPLOY_BLOCK } from '@/constants/contract'
 
 // We define the strict RunData TypeScript interface representing the Solidity struct
 export interface RunData {
@@ -11,9 +11,6 @@ export interface RunData {
   distance: bigint;
   time: bigint;
   date: bigint;
-  steps: bigint;
-  avgSpeed: bigint;
-  maxSpeed: bigint;
 }
 
 // EIP-712 Types for RunCore
@@ -22,10 +19,7 @@ export const runDataEIP712Types = {
     { name: 'user', type: 'address' },
     { name: 'distance', type: 'uint256' },
     { name: 'time', type: 'uint256' },
-    { name: 'date', type: 'uint256' },
-    { name: 'steps', type: 'uint256' },
-    { name: 'avgSpeed', type: 'uint256' },
-    { name: 'maxSpeed', type: 'uint256' }
+    { name: 'date', type: 'uint256' }
   ]
 } as const;
 
@@ -211,7 +205,7 @@ export function useFetchUserActivity() {
         address: runCoreContractConfig.address as `0x${string}`,
         event: parseAbiItem('event SoloChallengeWon(address indexed runner, uint256 indexed challengeId, uint256 reward)'),
         args: { runner: addressArg },
-        fromBlock: BigInt(0),
+        fromBlock: DEPLOY_BLOCK,
         toBlock: 'latest'
       })
 
@@ -220,7 +214,7 @@ export function useFetchUserActivity() {
         address: runCoreContractConfig.address as `0x${string}`,
         event: parseAbiItem('event MultiChallengeJoined(uint256 indexed challengeId, address indexed challenger, uint256 stakeAmount)'),
         args: { challenger: addressArg },
-        fromBlock: BigInt(0),
+        fromBlock: DEPLOY_BLOCK,
         toBlock: 'latest'
       })
 
@@ -229,7 +223,7 @@ export function useFetchUserActivity() {
         address: runCoreContractConfig.address as `0x${string}`,
         event: parseAbiItem('event MultiChallengeCompleted(uint256 indexed challengeId, address indexed winner, uint256 totalReward)'),
         args: { winner: addressArg },
-        fromBlock: BigInt(0),
+        fromBlock: DEPLOY_BLOCK,
         toBlock: 'latest'
       })
 
@@ -238,7 +232,7 @@ export function useFetchUserActivity() {
         address: runCoreContractConfig.address as `0x${string}`,
         event: parseAbiItem('event PromoCodeBought(address indexed buyer, uint256 promoId, uint256 cost)'),
         args: { buyer: addressArg },
-        fromBlock: BigInt(0),
+        fromBlock: DEPLOY_BLOCK,
         toBlock: 'latest'
       })
 
@@ -247,7 +241,7 @@ export function useFetchUserActivity() {
         address: runCoreContractConfig.address as `0x${string}`,
         event: parseAbiItem('event MultiChallengeCreated(uint256 indexed challengeId, address indexed creator, uint256 stakeAmount, uint256 distanceTarget, uint256 timeMax, uint256 deadline)'),
         args: { creator: addressArg },
-        fromBlock: BigInt(0),
+        fromBlock: DEPLOY_BLOCK,
         toBlock: 'latest'
       })
 
@@ -585,7 +579,7 @@ export function useFetchPromoCodes() {
       const logs = await publicClient.getLogs({
         address: runCoreContractConfig.address as `0x${string}`,
         event: parseAbiItem('event PromoAdded(uint256 indexed promoId, uint256 cost)'),
-        fromBlock: BigInt(0),
+        fromBlock: DEPLOY_BLOCK,
         toBlock: 'latest'
       })
 
@@ -681,7 +675,7 @@ export function useFetchSoloChallengeEvents() {
       const addedLogs = await publicClient.getLogs({
         address: runCoreContractConfig.address as `0x${string}`,
         event: parseAbiItem('event SoloChallengeAdded(uint256 indexed challengeId, uint256 distance, uint256 timeMax, uint256 reward)'),
-        fromBlock: BigInt(0),
+        fromBlock: DEPLOY_BLOCK,
         toBlock: 'latest'
       })
 
@@ -689,9 +683,9 @@ export function useFetchSoloChallengeEvents() {
       if (address) {
         const wonLogs = await publicClient.getLogs({
           address: runCoreContractConfig.address as `0x${string}`,
-          event: parseAbiItem('event SoloChallengeWon(address indexed runner, uint256 indexed challengeId)'),
+          event: parseAbiItem('event SoloChallengeWon(address indexed runner, uint256 indexed challengeId, uint256 reward)'),
           args: { runner: address as `0x${string}` },
-          fromBlock: BigInt(0),
+          fromBlock: DEPLOY_BLOCK,
           toBlock: 'latest'
         })
         wonChallengeIds = wonLogs.map(log => log.args.challengeId ? log.args.challengeId.toString() : '')
@@ -737,22 +731,22 @@ export function useFetchMultiPlayerState() {
       const createdLogs = await publicClient.getLogs({
         address: contractAddr,
         event: parseAbiItem('event MultiChallengeCreated(uint256 indexed challengeId, address indexed creator, uint256 stakeAmount, uint256 distanceTarget, uint256 timeMax, uint256 deadline)'),
-        fromBlock: BigInt(0),
+        fromBlock: DEPLOY_BLOCK,
         toBlock: 'latest'
       })
 
 
       const joinedLogs = await publicClient.getLogs({
         address: contractAddr,
-        event: parseAbiItem('event MultiChallengeJoined(uint256 indexed challengeId, address indexed challenger)'),
-        fromBlock: BigInt(0),
+        event: parseAbiItem('event MultiChallengeJoined(uint256 indexed challengeId, address indexed challenger, uint256 stakeAmount)'),
+        fromBlock: DEPLOY_BLOCK,
         toBlock: 'latest'
       })
 
       const completedLogs = await publicClient.getLogs({
         address: contractAddr,
         event: parseAbiItem('event MultiChallengeCompleted(uint256 indexed challengeId, address indexed winner, uint256 totalReward)'),
-        fromBlock: BigInt(0),
+        fromBlock: DEPLOY_BLOCK,
         toBlock: 'latest'
       })
 
