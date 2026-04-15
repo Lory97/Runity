@@ -6,22 +6,25 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title RunToken
- * @dev Soulbound token for the Runity Dapp. 
- * Max balance per user is 10,000 RUN.
+ * @dev Soulbound token for the Runity Dapp.
+ * Max balance per user is 5,000 RUN.
  * Tokens can be transferred to/from the core smart contract (Escrow).
  */
 contract RunToken is ERC20, Ownable {
-    uint256 public constant MAX_BALANCE = 10000 * 10 ** 18;
+    uint256 public constant MAX_BALANCE = 5000 * 10 ** 18;
 
     // App core contract that has permission to mint, burn, and escrow
     address public coreContract;
-    
+
     event CoreContractUpdated(address indexed newCoreContract);
 
     constructor() ERC20("RunToken", "RUN") Ownable(msg.sender) {}
 
     modifier onlyCoreOrOwner() {
-        require(msg.sender == coreContract || msg.sender == owner(), "RunToken: caller is not core or owner");
+        require(
+            msg.sender == coreContract || msg.sender == owner(),
+            "RunToken: caller is not core or owner"
+        );
         _;
     }
 
@@ -37,7 +40,10 @@ contract RunToken is ERC20, Ownable {
      * @dev Mint tokens, bounded by MAX_BALANCE.
      */
     function mint(address to, uint256 amount) external onlyCoreOrOwner {
-        require(balanceOf(to) + amount <= MAX_BALANCE, "RunToken: Max balance exceeded");
+        require(
+            balanceOf(to) + amount <= MAX_BALANCE,
+            "RunToken: Max balance exceeded"
+        );
         _mint(to, amount);
     }
 
@@ -52,11 +58,15 @@ contract RunToken is ERC20, Ownable {
      * @dev Soulbound implementation for OpenZeppelin v5.
      * Reverts if neither the sender nor the recipient is the core contract or zero address.
      */
-    function _update(address from, address to, uint256 value) internal override {
+    function _update(
+        address from,
+        address to,
+        uint256 value
+    ) internal override {
         if (
-            from != address(0) && 
-            to != address(0) && 
-            from != coreContract && 
+            from != address(0) &&
+            to != address(0) &&
+            from != coreContract &&
             to != coreContract
         ) {
             revert("RunToken: Tokens are Soulbound and non-transferable p2p");

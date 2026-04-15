@@ -21,7 +21,7 @@ contract RunCore is Ownable, EIP712 {
      */
     bytes32 private constant RUNDATA_TYPEHASH =
         keccak256(
-            "RunData(address user,uint256 distance,uint256 time,uint256 date,uint256 steps,uint256 avgSpeed,uint256 maxSpeed)"
+            "RunData(address user,uint256 distance,uint256 time,uint256 date)"
         );
 
     /**
@@ -67,9 +67,6 @@ contract RunCore is Ownable, EIP712 {
         uint256 distance;
         uint256 time;
         uint256 date;
-        uint256 steps;
-        uint256 avgSpeed;
-        uint256 maxSpeed;
     }
 
     /// @notice Tracks the data profile of every runner.
@@ -83,6 +80,8 @@ contract RunCore is Ownable, EIP712 {
 
     /// @notice Maps a challenge ID to a mapping of participants (O(1) lookup & anti double-join).
     mapping(uint256 => mapping(address => bool)) public hasJoined;
+
+    /// @notice Maps a challenge ID to whether a participant has already submitted a result.
     mapping(uint256 => mapping(address => bool)) public hasSubmitted;
 
     /// @notice Maps a hash of run data to a boolean to prevent replay attacks.
@@ -196,6 +195,12 @@ contract RunCore is Ownable, EIP712 {
 
     // --- Safety Internal Payouts (Anti-DoS) ---
 
+    /**
+     * @dev Safely mints tokens to a recipient, capping at MAX_BALANCE.
+     * Any excess beyond the cap is silently discarded to prevent DoS.
+     * @param to The address to mint tokens to.
+     * @param amount The desired amount of tokens to mint.
+     */
     function _payoutMint(address to, uint256 amount) internal {
         uint256 maxBalance = token.MAX_BALANCE();
         uint256 currentBalance = token.balanceOf(to);
@@ -210,6 +215,12 @@ contract RunCore is Ownable, EIP712 {
         }
     }
 
+    /**
+     * @dev Safely transfers escrowed tokens to a recipient, capping at MAX_BALANCE.
+     * Any excess beyond the cap is burned from the contract to prevent token sticking.
+     * @param to The address to send escrowed tokens to.
+     * @param amount The desired amount of tokens to release.
+     */
     function _payoutEscrow(address to, uint256 amount) internal {
         uint256 maxBalance = token.MAX_BALANCE();
         uint256 currentBalance = token.balanceOf(to);
@@ -248,10 +259,7 @@ contract RunCore is Ownable, EIP712 {
                 data.user,
                 data.distance,
                 data.time,
-                data.date,
-                data.steps,
-                data.avgSpeed,
-                data.maxSpeed
+                data.date
             )
         );
 
@@ -268,6 +276,13 @@ contract RunCore is Ownable, EIP712 {
 
     // --- Solo Mode ---
 
+    /**
+     * @notice Creates a new solo challenge available for all runners.
+     * @dev Only the contract owner can add solo challenges. Rewards are minted on claim.
+     * @param _distanceTarget Minimum distance (in meters) the runner must cover.
+     * @param _timeMax Maximum allowed time (in seconds) to complete the run.
+     * @param _reward Amount of RUN tokens minted as reward upon completion.
+     */
     function addSoloChallenge(
         uint256 _distanceTarget,
         uint256 _timeMax,
@@ -288,31 +303,61 @@ contract RunCore is Ownable, EIP712 {
         nextSoloChallengeId++;
     }
 
+    /**
+     * @notice Allows a registered runner to claim a solo challenge reward.
+     * @dev Verifies the EIP-712 signed run data against the backend signer,
+     * checks distance and time requirements, then mints the reward.
+     * @param _challengeId The ID of the solo challenge to claim.
+     * @param _data The run data struct signed by the backend oracle.
+     * @param _signature The EIP-712 signature from the backend signer.
+     */
     function claimSoloChallenge(
-        uint256 challengeId,
-        RunData calldata data,
-        bytes calldata signature
+        uint256 _challengeId,
+        RunData calldata _data,
+        bytes calldata _signature
     ) external {
         require(runners[msg.sender].isRegistered, "Not registered");
-        SoloChallenge memory challenge = soloChallenges[challengeId];
+        SoloChallenge memory challenge = soloChallenges[_challengeId];
         require(challenge.isActive, "Challenge not active");
         require(
-            data.distance >= challenge.distanceTarget,
+            _data.distance >= challenge.distanceTarget,
             "Distance target not met"
         );
-        require(data.time <= challenge.timeMax, "Time limit exceeded");
+        require(_data.time <= challenge.timeMax, "Time limit exceeded");
 
-        _verifyRunSignature(data, signature);
+        _verifyRunSignature(_data, _signature);
 
-        runners[msg.sender].totalDistance += data.distance;
+        runners[msg.sender].totalDistance += _data.distance;
 
         _payoutMint(msg.sender, challenge.reward);
 
-        emit SoloChallengeWon(msg.sender, challengeId, challenge.reward);
+        emit SoloChallengeWon(msg.sender, _challengeId, challenge.reward);
+    }
+
+    /**
+     * @notice Toggles the active status of a solo challenge.
+     * @dev Only the contract owner can activate or deactivate challenges.
+     * @param _challengeId The ID of the solo challenge to update.
+     * @param _isActive Whether the challenge should be active (true) or inactive (false).
+     */
+    function setSoloChallengeActive(
+        uint256 _challengeId,
+        bool _isActive
+    ) external onlyOwner {
+        soloChallenges[_challengeId].isActive = _isActive;
     }
 
     // --- Multiplayer Mode ---
 
+    /**
+     * @notice Creates a new multiplayer challenge and escrows the creator's stake.
+     * @dev The creator automatically joins as the first participant.
+     * Stake is transferred from the caller to the contract as escrow.
+     * @param _distanceTarget Minimum distance (in meters) to validate a submission.
+     * @param _timeMax Maximum allowed time (in seconds) to complete the run.
+     * @param _stakeAmount Amount of RUN tokens each participant must stake.
+     * @param _duration Duration (in seconds) before the challenge expires.
+     */
     function createMultiChallenge(
         uint256 _distanceTarget,
         uint256 _timeMax,
@@ -321,6 +366,13 @@ contract RunCore is Ownable, EIP712 {
     ) external {
         require(runners[msg.sender].isRegistered, "Not registered");
         require(_stakeAmount > 0, "Stake must be > 0");
+        require(
+            _stakeAmount <= token.MAX_BALANCE(),
+            "Stake must be <= MAX_BALANCE"
+        );
+        require(_duration > 0, "Duration must be > 0");
+        require(_distanceTarget > 0, "Distance target must be > 0");
+        require(_timeMax > 0, "Time max must be > 0");
 
         // Escrow the stake
         token.transferFrom(msg.sender, address(this), _stakeAmount);
@@ -349,21 +401,28 @@ contract RunCore is Ownable, EIP712 {
         );
     }
 
-    function joinMultiChallenge(uint256 challengeId) external {
+    /**
+     * @notice Allows a registered runner to join an existing multiplayer challenge.
+     * @dev The participant's stake (equal to the challenge's stakeAmount) is escrowed.
+     * Reverts if the challenge is full, expired, completed, or already joined.
+     * @param _challengeId The ID of the multiplayer challenge to join.
+     */
+    function joinMultiChallenge(uint256 _challengeId) external {
         require(runners[msg.sender].isRegistered, "Not registered");
-        MultiChallenge storage challenge = multiChallenges[challengeId];
-        require(!challenge.isCompleted, "Challenge already completed");
+        MultiChallenge storage challenge = multiChallenges[_challengeId];
         require(
-            block.timestamp < challenge.deadline,
-            "Challenge deadline passed"
+            _challengeId < nextMultiChallengeId,
+            "Challenge does not exist"
         );
+        require(!challenge.isCompleted, "Challenge already completed");
+        require(block.timestamp <= challenge.deadline, "Challenge expired");
         require(
             challenge.challengerCount < MAX_CHALLENGERS,
             "Challenge is full"
         );
-        require(!hasJoined[challengeId][msg.sender], "Already joined");
+        require(!hasJoined[_challengeId][msg.sender], "Already joined");
 
-        hasJoined[challengeId][msg.sender] = true;
+        hasJoined[_challengeId][msg.sender] = true;
         challenge.challengerCount++;
         runners[msg.sender].challengesPlayed++;
 
@@ -371,61 +430,74 @@ contract RunCore is Ownable, EIP712 {
         token.transferFrom(msg.sender, address(this), challenge.stakeAmount);
 
         emit MultiChallengeJoined(
-            challengeId,
+            _challengeId,
             msg.sender,
             challenge.stakeAmount
         );
     }
 
+    /**
+     * @notice Submits a verified run result for a multiplayer challenge.
+     * @dev The best time (shortest) across all submissions determines the winner.
+     * Each participant can only submit once. Run data is verified via EIP-712 signature.
+     * @param _challengeId The ID of the multiplayer challenge.
+     * @param _data The run data struct signed by the backend oracle.
+     * @param _signature The EIP-712 signature from the backend signer.
+     */
     function submitMultiplayerResult(
-        uint256 challengeId,
-        RunData calldata data,
-        bytes calldata signature
+        uint256 _challengeId,
+        RunData calldata _data,
+        bytes calldata _signature
     ) external {
-        MultiChallenge storage challenge = multiChallenges[challengeId];
+        MultiChallenge storage challenge = multiChallenges[_challengeId];
         require(!challenge.isCompleted, "Challenge already resolved");
         require(
-            block.timestamp <= challenge.deadline,
+            block.timestamp < challenge.deadline,
             "Challenge deadline passed"
         );
-        require(hasJoined[challengeId][msg.sender], "Not a participant");
+        require(hasJoined[_challengeId][msg.sender], "Not a participant");
         require(
-            !hasSubmitted[challengeId][msg.sender],
+            !hasSubmitted[_challengeId][msg.sender],
             "Already submitted your result"
         );
         require(
-            data.distance >= challenge.distanceTarget,
+            _data.distance >= challenge.distanceTarget,
             "Distance target not met"
         );
-        require(data.time <= challenge.timeMax, "Time limit exceeded");
+        require(_data.time <= challenge.timeMax, "Time limit exceeded");
 
-        _verifyRunSignature(data, signature);
+        _verifyRunSignature(_data, _signature);
 
-        hasSubmitted[challengeId][msg.sender] = true;
+        hasSubmitted[_challengeId][msg.sender] = true;
 
         // Update best performance
-        if (data.time < challenge.bestTime) {
-            challenge.bestTime = data.time;
+        if (_data.time < challenge.bestTime) {
+            challenge.bestTime = _data.time;
             challenge.winner = msg.sender;
         }
 
-        runners[msg.sender].totalDistance += data.distance;
+        runners[msg.sender].totalDistance += _data.distance;
 
-        emit MultiChallengeResultSubmitted(challengeId, msg.sender, data.time);
+        emit MultiChallengeResultSubmitted(
+            _challengeId,
+            msg.sender,
+            _data.time
+        );
     }
 
     /**
-     * @dev Resolves a multiplayer challenge and distributes the pool to the winner.
+     * @dev Resolves a multiplayer challenge.
+     * The winner receives 80% of the total pool, 20% is burned.
      */
-    function resolveMultiChallenge(uint256 challengeId) external {
-        MultiChallenge storage challenge = multiChallenges[challengeId];
+    function resolveMultiChallenge(uint256 _challengeId) external {
+        MultiChallenge storage challenge = multiChallenges[_challengeId];
         require(!challenge.isCompleted, "Challenge already resolved");
         require(
             block.timestamp > challenge.deadline,
             "Challenge deadline not yet passed"
         );
         require(
-            msg.sender == owner() || hasJoined[challengeId][msg.sender],
+            msg.sender == owner() || hasJoined[_challengeId][msg.sender],
             "Only admin or participant can resolve"
         );
 
@@ -435,48 +507,76 @@ contract RunCore is Ownable, EIP712 {
             runners[challenge.winner].challengesWon++;
             uint256 totalPool = challenge.stakeAmount *
                 challenge.challengerCount;
-            _payoutEscrow(challenge.winner, totalPool);
+
+            // 80% to the winner, 20% burned
+            uint256 winnerReward = (totalPool * 80) / 100;
+            uint256 burnAmount = totalPool - winnerReward;
+
+            _payoutEscrow(challenge.winner, winnerReward);
+            token.burn(address(this), burnAmount);
+
             emit MultiChallengeCompleted(
-                challengeId,
+                _challengeId,
                 challenge.winner,
-                totalPool
+                winnerReward
             );
         }
     }
 
-    function claimRefund(uint256 challengeId) external {
-        MultiChallenge storage challenge = multiChallenges[challengeId];
-        require(!challenge.isCompleted, "Challenge completed, no refund");
+    /**
+     * @dev Allows participants to reclaim their stake when:
+     * - The deadline has passed and no one called resolve yet, OR
+     * - The challenge was resolved but had no winner (no submissions).
+     * This prevents permanent token lockup when nobody runs.
+     */
+    function claimRefund(uint256 _challengeId) external {
+        MultiChallenge storage challenge = multiChallenges[_challengeId];
+        require(
+            !challenge.isCompleted || challenge.winner == address(0),
+            "Challenge completed with a winner, no refund"
+        );
         require(
             block.timestamp > challenge.deadline,
             "Deadline not passed yet"
         );
         require(
-            hasJoined[challengeId][msg.sender],
+            hasJoined[_challengeId][msg.sender],
             "Not a participant or already refunded"
         );
 
         // Release user from mapping to prevent double pull refund
-        hasJoined[challengeId][msg.sender] = false;
+        hasJoined[_challengeId][msg.sender] = false;
 
         // Refund the stake using Escrow payout logic
         _payoutEscrow(msg.sender, challenge.stakeAmount);
 
-        emit MultiChallengeRefunded(challengeId, msg.sender);
+        emit MultiChallengeRefunded(_challengeId, msg.sender);
     }
 
     // --- Store / Promos ---
 
-    function setPromoCost(uint256 promoId, uint256 cost) external onlyOwner {
-        promoCosts[promoId] = cost;
-        emit PromoAdded(promoId, cost);
+    /**
+     * @notice Sets the cost in RUN tokens for a promotional item.
+     * @dev Only the contract owner can set promo costs. Setting cost to 0 effectively disables the promo.
+     * @param _promoId The unique identifier for the promo item.
+     * @param _cost The cost in RUN tokens (in wei) to purchase this promo.
+     */
+    function setPromoCost(uint256 _promoId, uint256 _cost) external onlyOwner {
+        promoCosts[_promoId] = _cost;
+        emit PromoAdded(_promoId, _cost);
     }
 
-    function buyPromoCode(uint256 promoId) external {
-        uint256 cost = promoCosts[promoId];
+    /**
+     * @notice Burns RUN tokens from the caller to purchase a promotional code.
+     * @dev Tokens are burned (not transferred) to create deflationary pressure.
+     * Reverts if the promo cost is 0 (not available) or if the caller lacks sufficient balance.
+     * @param _promoId The unique identifier for the promo item to purchase.
+     */
+    function buyPromoCode(uint256 _promoId) external {
+        uint256 cost = promoCosts[_promoId];
         require(cost > 0, "Promo not available");
         // Burn user tokens to buy promo
         token.burn(msg.sender, cost);
-        emit PromoCodeBought(msg.sender, promoId, cost);
+        emit PromoCodeBought(msg.sender, _promoId, cost);
     }
 }
