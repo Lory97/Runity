@@ -305,7 +305,7 @@ export function useFetchUserActivity() {
       })
     },
     enabled: !!address && !!publicClient,
-    refetchInterval: 5000,
+    refetchInterval: 30000,
   })
 }
 
@@ -451,6 +451,37 @@ export function useResolveMultiChallenge() {
 
   return {
     resolveMultiChallenge,
+    hash,
+    error,
+    isLoading: isPending || isWaiting,
+    isSuccess
+  }
+}
+
+export function useClaimRefund() {
+  const { writeContractAsync, data: hash, error, isPending } = useWriteContract()
+
+  const claimRefund = async (challengeId: bigint) => {
+    try {
+      const tx = await writeContractAsync({
+        address: runCoreContractConfig.address as `0x${string}`,
+        abi: runCoreContractConfig.abi,
+        functionName: 'claimRefund',
+        args: [challengeId]
+      })
+      return tx
+    } catch (err) {
+      console.error("Refund failed: ", err)
+      throw err
+    }
+  }
+
+  const { isLoading: isWaiting, isSuccess } = useWaitForTransactionReceipt({
+    hash,
+  })
+
+  return {
+    claimRefund,
     hash,
     error,
     isLoading: isPending || isWaiting,
@@ -713,7 +744,7 @@ export function useFetchSoloChallengeEvents() {
       return mapped;
     },
     enabled: !!publicClient,
-    refetchInterval: 5000
+    refetchInterval: 30000
   })
 }
 
@@ -753,44 +784,59 @@ export function useFetchMultiPlayerState() {
       // Combine logs into a list of challenges
       const challenges: any[] = []
 
-      for (const log of createdLogs) {
-        if (log.args.challengeId === undefined) continue;
-        const id = log.args.challengeId;
+      const challengeIds = createdLogs.map(log => log.args.challengeId).filter(id => id !== undefined) as bigint[];
 
+      let results: any[] = [];
+      if (challengeIds.length > 0) {
+        const contracts = challengeIds.map(id => ({
+          address: contractAddr,
+          abi: runCoreContractConfig.abi,
+          functionName: 'multiChallenges' as const,
+          args: [id] as const
+        }));
         try {
-          const data = await publicClient.readContract({
-            address: contractAddr,
-            abi: runCoreContractConfig.abi,
-            functionName: 'multiChallenges',
-            args: [id]
-          }) as any
-
-          // Find challengers for this ID from logs
-          const challengers = joinedLogs
-            .filter(j => j.args.challengeId !== undefined && BigInt(j.args.challengeId) === BigInt(id))
-            .map(j => j.args.challenger)
-
-          // Resilience: handle both array and object returns from viem
-          const isArray = Array.isArray(data);
-
-          challenges.push({
-            challengeId: id,
-            creator: isArray ? data[0] : data.creator,
-            stakeAmount: isArray ? data[1] : data.stakeAmount,
-            distanceTarget: isArray ? data[2] : data.distanceTarget,
-            timeMax: isArray ? data[3] : data.timeMax,
-            deadline: isArray ? data[4] : data.deadline,
-            challengerCount: isArray ? data[5] : data.challengerCount,
-            bestTime: isArray ? data[6] : data.bestTime,
-            isCompleted: isArray ? data[7] : data.isCompleted,
-            winner: isArray ? data[8] : data.winner,
-            challengers
-          })
+          results = await publicClient.multicall({ contracts });
         } catch (err) {
-          console.error(`Error fetching challenge ${id}:`, err);
-          continue;
+          console.error("Multicall failed:", err);
+          // Fallback if multicall isn't supported on RPC
+          results = await Promise.all(contracts.map(c => 
+            publicClient.readContract(c).then(res => ({ result: res, status: 'success' })).catch(error => ({ error, status: 'failure' }))
+          ));
         }
       }
+
+      challengeIds.forEach((id, index) => {
+        const result = results[index];
+        if (result?.status === 'failure') {
+          console.error(`Error fetching challenge ${id}:`, result.error);
+          return;
+        }
+
+        const data = result?.result as any;
+        if (!data) return;
+
+        // Find challengers for this ID from logs
+        const challengers = joinedLogs
+          .filter(j => j.args.challengeId !== undefined && BigInt(j.args.challengeId) === BigInt(id))
+          .map(j => j.args.challenger)
+
+        // Resilience: handle both array and object returns from viem
+        const isArray = Array.isArray(data);
+
+        challenges.push({
+          challengeId: id,
+          creator: isArray ? data[0] : data.creator,
+          stakeAmount: isArray ? data[1] : data.stakeAmount,
+          distanceTarget: isArray ? data[2] : data.distanceTarget,
+          timeMax: isArray ? data[3] : data.timeMax,
+          deadline: isArray ? data[4] : data.deadline,
+          challengerCount: isArray ? data[5] : data.challengerCount,
+          bestTime: isArray ? data[6] : data.bestTime,
+          isCompleted: isArray ? data[7] : data.isCompleted,
+          winner: isArray ? data[8] : data.winner,
+          challengers
+        })
+      });
 
       // Sort: Open challenges first, then by ID descending
       challenges.sort((a, b) => {
@@ -803,6 +849,6 @@ export function useFetchMultiPlayerState() {
       return challenges
     },
     enabled: !!publicClient,
-    refetchInterval: 5000
+    refetchInterval: 30000
   })
 }

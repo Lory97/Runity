@@ -14,9 +14,10 @@ import {
   useHasSubmitted,
   useHasJoined,
   useIsOwner,
+  useClaimRefund,
   generateMockBackendSignature
 } from '@/hooks/useRunCore'
-import { Users, Timer, Activity, Zap, ShieldAlert, CheckCircle2, Lock, RefreshCw, Trophy, Play, Gavel, ChevronDown, ChevronUp, Plus } from 'lucide-react'
+import { Users, Timer, Activity, Zap, ShieldAlert, CheckCircle2, Lock, RefreshCw, Trophy, Play, Gavel, ChevronDown, ChevronUp, Plus, Clock } from 'lucide-react'
 
 // FORM COMPONENT
 function CreateMultiChallengeForm({ refetch }: { refetch: () => void }) {
@@ -191,6 +192,7 @@ function ChallengeCard({ challenge, refetch }: { challenge: any, refetch: () => 
   const { stakeMultiplayer, isLoading: isJoining, isSuccess: isJoinSuccess } = useStakeMultiplayer()
   const { submitMultiplayerResult, isLoading: isSubmitting, isSuccess: isSubmitSuccess } = useSubmitMultiplayerResult()
   const { resolveMultiChallenge, isLoading: isResolving, isSuccess: isResolveSuccess } = useResolveMultiChallenge()
+  const { claimRefund, isLoading: isRefunding, isSuccess: isRefundSuccess } = useClaimRefund()
   const { hasSubmitted, refetch: refetchHasSubmitted } = useHasSubmitted(challenge.challengeId)
   const { isJoined: isJoinedLive, refetch: refetchIsJoined } = useHasJoined(challenge.challengeId)
   const { allowance, refetch: refetchAllowance } = useTokenAllowance()
@@ -221,6 +223,13 @@ function ChallengeCard({ challenge, refetch }: { challenge: any, refetch: () => 
       refetch()
     }
   }, [isResolveSuccess, refetch])
+
+  React.useEffect(() => {
+    if (isRefundSuccess) {
+      refetch()
+      refetchIsJoined()
+    }
+  }, [isRefundSuccess, refetch, refetchIsJoined])
 
   React.useEffect(() => {
     if (isApproveSuccess) {
@@ -274,13 +283,40 @@ function ChallengeCard({ challenge, refetch }: { challenge: any, refetch: () => 
     }
   }
 
+  const handleRefund = async () => {
+    try {
+      await claimRefund(challenge.challengeId);
+    } catch (err) {
+      console.error("Refund failed", err);
+    }
+  }
+
   const isCreator = address && challenge.creator?.toLowerCase() === address.toLowerCase();
   const isParticipating = address && (
     isCreator || 
     isJoinedLive ||
     challenge.challengers?.some((c: string) => c.toLowerCase() === address.toLowerCase())
   );
-  const isExpired = Date.now() / 1000 > Number(challenge.deadline)
+  const [now, setNow] = useState(Math.floor(Date.now() / 1000));
+  
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      setNow(Math.floor(Date.now() / 1000));
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const deadline = Number(challenge.deadline);
+  const isExpired = now > deadline;
+  const timeRemainingSeconds = Math.max(0, deadline - now);
+
+  const formatRemainingTime = (seconds: number) => {
+    if (seconds <= 0) return "Expired";
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    return `${h}h ${m}m left`;
+  };
+
   const challengerCountNum = Number(challenge.challengerCount || 1)
   const isFull = challengerCountNum >= 50
 
@@ -297,8 +333,10 @@ function ChallengeCard({ challenge, refetch }: { challenge: any, refetch: () => 
   const stakeValue = Number(formatEther(challenge.stakeAmount || BigInt(0)))
   const totalPot = stakeValue * challengerCountNum
 
+  const hasWinner = challenge.winner && challenge.winner !== '0x0000000000000000000000000000000000000000';
   const canSubmit = isParticipating && !hasSubmitted && !isExpired && !challenge.isCompleted;
-  const canResolve = (isParticipating || isOwner) && isExpired && !challenge.isCompleted;
+  const canResolve = (isParticipating || isOwner) && isExpired && !challenge.isCompleted && hasWinner;
+  const canRefund = isJoinedLive && isExpired && !hasWinner;
 
   return (
     <div className={`bg-surface-container rounded-xl p-6 glass border transition-colors shadow-ambient relative overflow-hidden flex flex-col justify-between ${challenge.isCompleted ? 'border-green-500/30' : 'border-outline-variant hover:border-primary/50'}`}>
@@ -360,6 +398,18 @@ function ChallengeCard({ challenge, refetch }: { challenge: any, refetch: () => 
               </p>
             </div>
           </div>
+
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-surface flex items-center justify-center">
+              <Clock className="w-4 h-4 text-on-surface" />
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-on-surface-variant font-bold">Expiration</p>
+              <p className={`font-bold text-sm ${isExpired ? 'text-red-400' : 'text-foreground'}`}>
+                {isExpired ? "Expired" : formatRemainingTime(timeRemainingSeconds)}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -393,17 +443,26 @@ function ChallengeCard({ challenge, refetch }: { challenge: any, refetch: () => 
             {isResolving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Gavel className="w-4 h-4" />}
             Resolve & Payout
           </button>
+        ) : canRefund ? (
+          <button
+            onClick={handleRefund}
+            disabled={isRefunding}
+            className="w-full bg-transparent border border-red-500 text-red-500 hover:bg-red-500/10 shadow-glow font-display font-bold text-sm rounded-lg py-3 transition-all uppercase tracking-widest flex items-center justify-center gap-2"
+          >
+            {isRefunding ? <RefreshCw className="w-4 h-4 animate-spin" /> : null}
+            Claim Refund
+          </button>
         ) : isParticipating && hasSubmitted ? (
           <div className="w-full bg-surface-container-highest border border-primary/20 text-primary/70 font-display font-bold text-sm rounded-lg py-3 flex items-center justify-center gap-2 uppercase tracking-widest">
             <CheckCircle2 className="w-4 h-4" /> Awaiting Deadline
           </div>
-        ) : isParticipating ? (
+        ) : isParticipating && !isExpired ? (
            <button className="w-full bg-transparent border border-primary text-primary font-display font-bold text-sm rounded-lg py-3 opacity-80 cursor-default uppercase tracking-widest">
             {showJoinSuccess ? "Staked!" : "Participating"}
           </button>
         ) : isExpired ? (
           <button disabled className="w-full bg-surface-container-highest border border-outline-variant text-on-surface-variant font-display font-bold text-sm rounded-lg py-3 opacity-50 cursor-not-allowed uppercase tracking-widest">
-            {challenge.winner === '0x0000000000000000000000000000000000000000' ? "Expired (Refund)" : "Expired"}
+            Expired
           </button>
         ) : isFull ? (
           <button disabled className="w-full bg-surface-container-highest border border-outline-variant text-on-surface-variant font-display font-bold text-sm rounded-lg py-3 opacity-50 cursor-not-allowed uppercase tracking-widest">
