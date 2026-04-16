@@ -29,7 +29,7 @@
 
 ## 🎯 Présentation
 
-Runity est un écosystème décentralisé où l'effort physique se transforme en valeur digitale. Les utilisateurs courent, soumettent leurs données de course, et reçoivent des tokens **$RUN** — un **token soulbound** (non-transférable P2P) qu'ils peuvent utiliser pour des challenges, des paris ou des récompenses partenaires.
+Runity est un écosystème décentralisé où l'effort physique se transforme en valeur digitale. Les utilisateurs courent, soumettent leurs données de course, et reçoivent des tokens **$RUN** (non-transférable P2P) qu'ils peuvent utiliser pour des challenges, des paris ou des récompenses partenaires.
 
 ### Flux utilisateur
 
@@ -205,21 +205,10 @@ npx hardhat ignition deploy ignition/modules/RunCore.ts --network sepolia
 
 ## 🧪 Tests
 
-Les tests couvrent les scénarios critiques de sécurité :
-
 ```bash
 cd backend
 npx hardhat test
 ```
-
-### Scénarios testés
-
-| Test | Description |
-|---|---|
-| ✅ **EIP-712 Signature** | Vérifie que seules les courses signées par le backend sont acceptées |
-| ✅ **MAX_BALANCE Cap** | Les rewards sont cappées à 5 000 RUN sans revert (anti-DoS) |
-| ✅ **Anti-Double Join** | Impossible de rejoindre deux fois un challenge multiplayer |
-| ✅ **Escrow Payout** | Vérification des balances avant/après staking et victoire |
 
 ---
 
@@ -233,8 +222,8 @@ npx hardhat test
 ### ⚔️ Mode Multijoueur
 - Création de challenges avec staking de tokens $RUN  
 - Jusqu'à **50 participants** par challenge
-- Le premier à valider l'objectif remporte **toute la pool**
-- Système de **remboursement automatique** après expiration du deadline
+- Le premier à valider l'objectif remporte **80% de la pool**. Les 20% restants sont burn.
+- Possibilité de **récupération** des fonds après expiration de la deadline si aucun gagnant.
 
 ### 🛒 Marketplace
 - Codes promo achetables en burnant des tokens $RUN
@@ -256,7 +245,6 @@ npx hardhat test
 | **Anti-Replay** | Chaque hash de course est marqué comme exécuté (`executedRuns`) |
 | **Anti-DoS (Payout)** | Les fonctions `_payoutMint` et `_payoutEscrow` gèrent gracieusement les overflows sans revert |
 | **Soulbound Token** | Transfers P2P bloqués — seul le contrat core peut déplacer des tokens |
-| **Pull Refund Pattern** | Les remboursements multijoueur suivent le pattern Pull (anti double-refund) |
 
 ---
 
