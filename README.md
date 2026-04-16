@@ -7,6 +7,9 @@
 [![Hardhat](https://img.shields.io/badge/Hardhat-3-FFF100?logo=hardhat)](https://hardhat.org/)
 [![OpenZeppelin](https://img.shields.io/badge/OpenZeppelin-5.6-4E5EE4?logo=openzeppelin)](https://openzeppelin.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Live DApp](https://img.shields.io/badge/Live-DApp-000000?style=flat&logo=vercel)](https://runity.vercel.app/)
+
+> 🟢 **Testez l'application en ligne : [runity.vercel.app](https://runity.vercel.app/)**
 
 ---
 
@@ -54,22 +57,23 @@ Runity/
 │   │   └── Runity.test.ts      # Tests unitaires (EIP-712, security, escrow)
 │   └── hardhat.config.ts       # Configuration Hardhat (local + Sepolia)
 │
-└── frontend/                   # Interface utilisateur (Next.js 16)
-    └── src/
-        ├── app/
-        │   ├── page.tsx            # Dashboard (balance, activité, profil)
-        │   ├── solo/               # Page challenges solo
-        │   ├── multiplayer/        # Page challenges multijoueur
-        │   └── marketplace/        # Marketplace (promos)
-        ├── components/
-        │   ├── landing/LandingPage.tsx   # Page de présentation
-        │   ├── layout/Navbar.tsx         # Navigation
-        │   └── ui/                       # Composants UI (BalanceGauge, etc.)
-        ├── hooks/
-        │   └── useRunCore.ts       # Hooks wagmi pour toutes les interactions
-        ├── config/                 # Configuration Reown AppKit (WalletConnect)
-        └── constants/
-            └── contract.ts         # ABI & adresses des contrats
+└── front-end/
+    └── runity-app/             # Interface utilisateur (Next.js 16)
+        └── src/
+            ├── app/
+            │   ├── page.tsx            # Dashboard (balance, activité, profil)
+            │   ├── solo/               # Page challenges solo
+            │   ├── multiplayer/        # Page challenges multijoueur
+            │   └── marketplace/        # Marketplace (promos)
+            ├── components/
+            │   ├── landing/LandingPage.tsx   # Page de présentation
+            │   ├── layout/Navbar.tsx         # Navigation
+            │   └── ui/                       # Composants UI (BalanceGauge, etc.)
+            ├── hooks/
+            │   └── useRunCore.ts       # Hooks wagmi pour toutes les interactions
+            ├── config/                 # Configuration Reown AppKit (WalletConnect)
+            └── constants/
+                └── contract.ts         # ABI & adresses des contrats
 ```
 
 ---
@@ -82,7 +86,7 @@ Runity/
 |---|---|
 | **Standard** | ERC-20 (OpenZeppelin v5) |
 | **Symbole** | `$RUN` |
-| **Balance max** | 10 000 RUN par wallet |
+| **Balance max** | 5 000 RUN par wallet |
 | **Soulbound** | Non-transférable P2P — seul le contrat `RunCore` peut transférer via escrow |
 | **Mint/Burn** | Contrôlé exclusivement par `RunCore` |
 
@@ -140,13 +144,13 @@ cd backend
 npm install
 
 # Frontend
-cd ../frontend
+cd ../front-end/runity-app
 npm install
 ```
 
 ### 3. Configurer l'environnement
 
-Créer un fichier `frontend/.env.local` :
+Créer un fichier `front-end/runity-app/.env.local` :
 
 ```env
 NEXT_PUBLIC_PROJECT_ID=<votre_reown_project_id>
@@ -166,7 +170,7 @@ cd backend
 npx hardhat ignition deploy ignition/modules/RunCore.ts --network localhost
 
 # Terminal 3 — Frontend
-cd frontend
+cd front-end/runity-app
 npm run dev
 ```
 
@@ -213,7 +217,7 @@ npx hardhat test
 | Test | Description |
 |---|---|
 | ✅ **EIP-712 Signature** | Vérifie que seules les courses signées par le backend sont acceptées |
-| ✅ **MAX_BALANCE Cap** | Les rewards sont cappées à 10 000 RUN sans revert (anti-DoS) |
+| ✅ **MAX_BALANCE Cap** | Les rewards sont cappées à 5 000 RUN sans revert (anti-DoS) |
 | ✅ **Anti-Double Join** | Impossible de rejoindre deux fois un challenge multiplayer |
 | ✅ **Escrow Payout** | Vérification des balances avant/après staking et victoire |
 
